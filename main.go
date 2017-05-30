@@ -34,7 +34,7 @@ func main() {
 	dg.AddHandler(messageCreate)
 
 	// Register guildCreate as a callback for the guildCreate events.
-	dg.AddHandler(guildCreate)
+	// dg.AddHandler(guildCreate)
 
 	// Open the websocket and begin listening.
 	err = dg.Open()
@@ -43,7 +43,7 @@ func main() {
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("Airhorn is now running.  Press CTRL-C to exit.")
+	fmt.Println("CustomSpeak is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
@@ -95,27 +95,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					return
 				}
 				vc.AddHandler(func(vc *discordgo.VoiceConnection, vs *discordgo.VoiceSpeakingUpdate) {
-					fmt.Println(vs)
+					u, _ := s.User(vs.UserID)
+					fmt.Printf("%s speaks: %v\n", u.Username, vs.Speaking)
+					path := "green.png"
+					if !vs.Speaking {
+						path = "grey.png"
+					}
+					os.Remove(u.Username + ".png")
+					os.Link(path, u.Username+".png")
 				})
-
 				return
 			}
-		}
-	}
-}
-
-// This function will be called (due to AddHandler above) every time a new
-// guild is joined.
-func guildCreate(s *discordgo.Session, event *discordgo.GuildCreate) {
-
-	if event.Guild.Unavailable {
-		return
-	}
-
-	for _, channel := range event.Guild.Channels {
-		if channel.ID == event.Guild.ID {
-			_, _ = s.ChannelMessageSend(channel.ID, "CustomSpeak is ready! Type !!cs while in a voice channel to start.")
-			return
 		}
 	}
 }
