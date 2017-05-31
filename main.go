@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	"path"
 )
 
 func init() {
@@ -94,15 +95,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				if err != nil {
 					return
 				}
-				vc.AddHandler(func(vc *discordgo.VoiceConnection, vs *discordgo.VoiceSpeakingUpdate) {
-					u, _ := s.User(vs.UserID)
-					fmt.Printf("%s speaks: %v\n", u.Username, vs.Speaking)
-					path := "green.png"
-					if !vs.Speaking {
-						path = "grey.png"
+				channel, _ := s.Channel(vs.ChannelID)
+				vc.AddHandler(func(vc *discordgo.VoiceConnection, event *discordgo.VoiceSpeakingUpdate) {
+					if vs.ChannelID != vc.ChannelID {
+						return
 					}
-					os.Remove(u.Username + ".png")
-					os.Link(path, u.Username+".png")
+					u, _ := s.User(vs.UserID)
+					fmt.Printf("[%v] %s speaks: %v\n", channel.Name, u.Username, event.Speaking)
+					src := "on.png"
+					cp := path.Join("custom", u.Username, src)
+					if _, err := os.Stat(cp); err == nil {
+						src = cp
+					}
+					if !event.Speaking {
+						src = "off.png"
+						cp = path.Join("custom", u.Username, src)
+						if _, err := os.Stat(cp); err == nil {
+							src = cp
+						}
+					}
+					os.Mkdir(channel.Name, 0666)
+					dest := path.Join(channel.Name, u.Username+".png")
+					os.Remove(dest)
+					os.Link(src, dest)
 				})
 				return
 			}
