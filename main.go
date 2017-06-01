@@ -7,9 +7,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"path"
+	"sync"
 )
 
 func init() {
@@ -58,8 +60,11 @@ func main() {
 func ready(s *discordgo.Session, event *discordgo.Ready) {
 
 	// Set the playing status.
-	s.UpdateStatus(0, "!airhorn")
+	s.UpdateStatus(0, "!!cs")
 }
+
+var userStates map[string]string
+var userHist map[string]string
 
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the autenticated bot has access to.
@@ -70,6 +75,9 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
+	userStates = map[string]string{}
+	userHist = map[string]string{}
+	var mutex = &sync.Mutex{}
 
 	// check if the message is "!airhorn"
 	if strings.HasPrefix(m.Content, "!!cs") {
@@ -96,29 +104,47 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					return
 				}
 				channel, _ := s.Channel(vs.ChannelID)
-				vc.AddHandler(func(vc *discordgo.VoiceConnection, event *discordgo.VoiceSpeakingUpdate) {
+				os.Mkdir(channel.Name, 0666)
+				vc.AddHandler(func(conn *discordgo.VoiceConnection, event *discordgo.VoiceSpeakingUpdate) {
 					if vs.ChannelID != vc.ChannelID {
 						return
 					}
-					u, _ := s.User(vs.UserID)
-					fmt.Printf("[%v] %s speaks: %v\n", channel.Name, u.Username, event.Speaking)
-					src := "on.png"
-					cp := path.Join("custom", u.Username, src)
-					if _, err := os.Stat(cp); err == nil {
-						src = cp
-					}
-					if !event.Speaking {
+					u, _ := s.User(event.UserID)
+					fmt.Printf("[%v] %s speaks: %v\n", time.Now(), u.Username, event.Speaking)
+					var cp string
+					var src string
+					if event.Speaking {
+						src = "on.png"
+						cp = path.Join("custom", u.Username, src)
+						if _, err := os.Stat(cp); err == nil {
+							src = cp
+						}
+					} else {
 						src = "off.png"
 						cp = path.Join("custom", u.Username, src)
 						if _, err := os.Stat(cp); err == nil {
 							src = cp
 						}
 					}
-					os.Mkdir(channel.Name, 0666)
-					dest := path.Join(channel.Name, u.Username+".png")
-					os.Remove(dest)
-					os.Link(src, dest)
+					mutex.Lock()
+					userStates[u.Username] = src
+					mutex.Unlock()
 				})
+				go func() {
+					for {
+						mutex.Lock()
+						for u, src := range userStates {
+							if userHist[u] != userStates[u] {
+								fmt.Printf("[%v] %v --- %v\n", time.Now(), u, src)
+								dest := path.Join(channel.Name, u+".png")
+								os.Remove(dest)
+								os.Link(src, dest)
+								userHist[u] = userStates[u]
+							}
+						}
+						mutex.Unlock()
+					}
+				}()
 				return
 			}
 		}
