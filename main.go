@@ -106,16 +106,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		// Look for the message sender in that guild's current voice states.
 		fmt.Println("Fetching users")
+		for _, m := range g.Members {
+			// u, _ := s.User(vs.UserID)
+			users[m.User.ID] = m.User.Username
+			fmt.Println(m.User.ID, "  ", m.User.Username)
+		}
 		for _, vs := range g.VoiceStates {
-
-			u, _ := s.User(vs.UserID)
-			users[vs.UserID] = u.Username
 			if vs.UserID == m.Author.ID {
 				vc, err := s.ChannelVoiceJoin(g.ID, vs.ChannelID, false, true)
 				if err != nil {
 					return
 				}
-				fmt.Println(s.UserChannels())
 				channel, _ = s.Channel(vs.ChannelID)
 				ch := make(chan Event, 50)
 				os.Mkdir(channel.Name, 0666)
@@ -123,8 +124,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 					if vs.ChannelID != vc.ChannelID {
 						return
 					}
-					fmt.Printf("[%v] %s speaks: %v\n", time.Now(), users[event.UserID], event.Speaking)
-					ch <- Event{users[event.UserID], event.Speaking}
+					ch <- Event{event.UserID, event.Speaking}
 				})
 
 				go func(ch chan Event) {
@@ -149,6 +149,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 							}
 							userHist[u] = speak
 
+							u = users[u]
+							fmt.Printf("[%v] %s speaks: %v\n", time.Now(), u, speak)
 							var cp string
 							var src string
 							if speak {
