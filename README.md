@@ -1,5 +1,7 @@
 # CustomSpeak
+Discord bot for custom overlay
 
+## Usage
 * invite bot to your server [by link](https://discordapp.com/oauth2/authorize?client_id=319211356094070784&scope=bot)
 * connect to voice channel
 * run `cs.exe` from releases page
