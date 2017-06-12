@@ -55,18 +55,22 @@ func main() {
 	dg.Close()
 }
 
+var userStates map[string]bool
+var userHist map[string]bool
+var users map[string]string
+var channel *discordgo.Channel
+
 // This function will be called (due to AddHandler above) when the bot receives
 // the "ready" event from Discord.
 func ready(s *discordgo.Session, event *discordgo.Ready) {
 
 	// Set the playing status.
 	s.UpdateStatus(0, "!!cs")
-}
 
-var userStates map[string]bool
-var userHist map[string]bool
-var users map[string]string
-var channel *discordgo.Channel
+	userStates = map[string]bool{}
+	userHist = map[string]bool{}
+	users = map[string]string{}
+}
 
 type Event struct {
 	Username string
@@ -77,17 +81,16 @@ type Event struct {
 // message is created on any channel that the autenticated bot has access to.
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
+	var mutex = &sync.Mutex{}
 	// Ignore all messages created by the bot itself
 	// This isn't required in this specific example but it's a good practice.
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	userStates = map[string]bool{}
-	userHist = map[string]bool{}
-	users = map[string]string{}
-	var mutex = &sync.Mutex{}
 
-	// check if the message is "!airhorn"
+	if strings.HasPrefix(strings.ToLower(m.Content), "слава укр") {
+		_, _ = s.ChannelMessageSend(m.ChannelID, "Героям Слава!")
+	}
 	if strings.HasPrefix(m.Content, "!!cs") {
 
 		// Find the channel that the message came from.
@@ -96,6 +99,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			// Could not find channel.
 			return
 		}
+		guild, err := s.State.Guild(c.GuildID)
+		folderName := fmt.Sprintf("%v_%v", guild.Name, c.Name)
 
 		// Find the guild for that channel.
 		g, err := s.State.Guild(c.GuildID)
@@ -119,7 +124,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 				channel, _ = s.Channel(vs.ChannelID)
 				ch := make(chan Event, 50)
-				os.Mkdir(channel.Name, 0666)
+				os.Mkdir(folderName, 0666)
 				vc.AddHandler(func(conn *discordgo.VoiceConnection, event *discordgo.VoiceSpeakingUpdate) {
 					if vs.ChannelID != vc.ChannelID {
 						return
@@ -149,24 +154,28 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 							}
 							userHist[u] = speak
 
-							u = users[u]
-							fmt.Printf("[%v] %s speaks: %v\n", time.Now(), u, speak)
+							userName, ok := users[u]
+							if !ok {
+								fmt.Print(users)
+								panic(u)
+							}
+							fmt.Printf("[%v] %v speaks: %v\n", time.Now(), userName, speak)
 							var cp string
 							var src string
 							if speak {
 								src = "on.png"
-								cp = path.Join("custom", u, src)
+								cp = path.Join("custom", userName, src)
 								if _, err := os.Stat(cp); err == nil {
 									src = cp
 								}
 							} else {
 								src = "off.png"
-								cp = path.Join("custom", u, src)
+								cp = path.Join("custom", userName, src)
 								if _, err := os.Stat(cp); err == nil {
 									src = cp
 								}
 							}
-							dest := path.Join(channel.Name, u+".png")
+							dest := path.Join(folderName, userName+".png")
 							os.Remove(dest)
 							os.Link(src, dest)
 						}
